@@ -39,7 +39,7 @@ const struct State states[4] = {
 	{NS_GREEN_EW_RED, GO_DELAY, {GO_NS, WAIT_NS, GO_NS, WAIT_NS}},
 	{NS_YELLOW_EW_RED, WAIT_DELAY, {GO_EW, GO_EW, GO_EW, GO_EW}},
 	{NS_RED_EW_GREEN, GO_DELAY, {GO_EW, GO_EW, WAIT_EW, WAIT_EW}},
-	{NS_YELLOW_EW_RED, WAIT_DELAY, {GO_NS, GO_NS, GO_NS, GO_NS}}
+	{NS_RED_EW_YELLOW, WAIT_DELAY, {GO_NS, GO_NS, GO_NS, GO_NS}}
 };
 
 unsigned long cur_state;
@@ -50,9 +50,29 @@ int main(void) {
 	//PLL_Init();
 	//SysTick_Init();
 	GPIO_Init();
-
+	unsigned int state = 0;
+	
 	while (1) {
-		/* code */
+		/*
+		GPIOB->DATA = NS_RED_EW_GREEN;
+		delayMs(WAIT_DELAY);
+		
+		GPIOB->DATA = NS_RED_EW_YELLOW;
+		delayMs(WAIT_DELAY);
+		
+		GPIOB->DATA = NS_YELLOW_EW_RED;
+		delayMs(WAIT_DELAY);
+		*/
+		GPIOB->DATA = states[state].output;
+		delayMs(states[state].delay);
+		
+		if (state < 3){
+			state += 1;
+		} else {
+			state = 0;
+		}
+		
+		
 	}
 }
 
@@ -65,7 +85,9 @@ void SystemInit(void) {
 void PLL_Init(void) {}
 
 
-void SysTick_Init(void) {}
+void SysTick_Init(void) {
+	
+}
 
 
 void GPIO_Init(void) {
@@ -73,8 +95,6 @@ void GPIO_Init(void) {
 	
 	GPIOB->DIR = 0x77;
 	GPIOB->DEN = 0x77;
-	
-	
 }
 
 
