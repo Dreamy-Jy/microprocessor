@@ -23,9 +23,10 @@ How does memeory management work in C++?
 
 
 void PLL_Init(void);
-void SysTick_Init(void);
-void GPIO_Init(void);
-void SysTick_Wait(unsigned long delay);
+void SysTickInit(void);
+void GPIOInit(void);
+void waitCycles(unsigned long cycles);
+void waitMS(unsigned long delay);
 void delayMs(int n);
 
 
@@ -35,6 +36,7 @@ struct State {
 	unsigned long nextState[4];
 };
 
+
 const struct State states[4] = {
 	{NS_GREEN_EW_RED, GO_DELAY, {GO_NS, WAIT_NS, GO_NS, WAIT_NS}},
 	{NS_YELLOW_EW_RED, WAIT_DELAY, {GO_EW, GO_EW, GO_EW, GO_EW}},
@@ -42,29 +44,20 @@ const struct State states[4] = {
 	{NS_RED_EW_YELLOW, WAIT_DELAY, {GO_NS, GO_NS, GO_NS, GO_NS}}
 };
 
+
 unsigned long cur_state;
 unsigned long input;
 
 
 int main(void) {
 	//PLL_Init();
-	//SysTick_Init();
-	GPIO_Init();
+	SysTickInit();
+	GPIOInit();
 	unsigned int state = 0;
 	
 	while (1) {
-		/*
-		GPIOB->DATA = NS_RED_EW_GREEN;
-		delayMs(WAIT_DELAY);
-		
-		GPIOB->DATA = NS_RED_EW_YELLOW;
-		delayMs(WAIT_DELAY);
-		
-		GPIOB->DATA = NS_YELLOW_EW_RED;
-		delayMs(WAIT_DELAY);
-		*/
 		GPIOB->DATA = states[state].output;
-		delayMs(states[state].delay);
+		waitMS(states[state].delay);
 		
 		if (state < 3){
 			state += 1;
@@ -85,20 +78,37 @@ void SystemInit(void) {
 void PLL_Init(void) {}
 
 
-void SysTick_Init(void) {
-	
+void SysTickInit(void) {
+	SysTick->CTRL = 0;
+	SysTick->CTRL = 5;
 }
 
 
-void GPIO_Init(void) {
+void GPIOInit(void) {
 	SYSCTL->RCGCGPIO |= 0x03; // CHANGE: I may use port e instead of a
 	
 	GPIOB->DIR = 0x77;
 	GPIOB->DEN = 0x77;
+	
+	
 }
 
 
-void SysTick_Wait(unsigned long delay) {}
+void waitCycles(unsigned long cycles) {
+	SysTick->LOAD = cycles-1;
+	SysTick->VAL = 0;
+	
+	while((SysTick->CTRL & 0x00010000) == 0){}
+}
+
+
+void waitMS(unsigned long delay) {
+	unsigned long i;
+	for(i=0; i<delay; i++) {
+		waitCycles(16000); // 80000 or 16000
+	}
+	
+}
 
 
 void delayMs(int n) {
