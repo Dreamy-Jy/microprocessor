@@ -47,13 +47,12 @@ const struct State states[4] = {
 
 unsigned long cur_state;
 unsigned long input;
-
+unsigned int state = 0;
 
 int main(void) {
 	//PLL_Init();
 	SysTickInit();
 	GPIOInit();
-	unsigned int state = 0;
 	
 	while (1) {
 		GPIOB->DATA = states[state].output;
@@ -64,13 +63,12 @@ int main(void) {
 		} else {
 			state = 0;
 		}
-		
-		
 	}
 }
 
 
 void SystemInit(void) {
+	__disable_irq();
 	SCB->CPACR |= 0x00F00000;
 }
 
@@ -85,12 +83,25 @@ void SysTickInit(void) {
 
 
 void GPIOInit(void) {
-	SYSCTL->RCGCGPIO |= 0x03; // CHANGE: I may use port e instead of a
+	SYSCTL->RCGCGPIO |= 0x03; 
 	
 	GPIOB->DIR = 0x77;
 	GPIOB->DEN = 0x77;
 	
+	GPIOA->DIR = 0x00;
+	GPIOA->DEN = 0x04;
+	GPIOA->PDR = 0x04;
 	
+	GPIOA->IS &= ~0x04;
+	GPIOA->IBE &= ~0x04;
+	GPIOA->IEV &= ~0x04;
+	GPIOA->ICR |= 0x04;
+	GPIOA->IM |= 0x04;
+	
+	NVIC->IP[16] = 3<<5;
+	NVIC->ISER[0] |= 0x00000001;
+	
+	__enable_irq();
 }
 
 
@@ -111,9 +122,13 @@ void waitMS(unsigned long delay) {
 }
 
 
-void delayMs(int n) {
-	int i, j;
-
-	for(i = 0; i < n; i++)
-		for(j = 0; j < 3180; j++) {}
+void GPIOA_Handler(void) {
+	volatile int readback;
+	
+	GPIOB->DATA = 0x07;
+	waitMS(500);
+	GPIOB->DATA = 0x00;
+	
+	GPIOA->ICR |= 0x04;
+	readback = GPIOA->ICR;
 }
