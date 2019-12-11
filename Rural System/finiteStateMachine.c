@@ -10,11 +10,12 @@ How does memeory management work in C++?
 #define NS_YELLOW_EW_RED 0x21
 #define NS_RED_EW_GREEN 0x14
 #define NS_RED_EW_YELLOW 0x12
+#define NS_YELLOW_EW_YELLOW 0x22
 #define NS_RED_EW_RED 0x11
 
 // Delays in milliseconds
-#define GO_DELAY 500
-#define WAIT_DELAY 500
+#define GO_DELAY 2000
+#define WAIT_DELAY 3000
 
 // State values
 #define GO_NS 0
@@ -28,12 +29,10 @@ struct State {
 	unsigned long nextState[2];
 };
 
-void PLL_Init(void);
 void SysTickInit(void);
 void GPIOInit(void);
 void waitCycles(unsigned long cycles);
 void waitMS(unsigned long delay);
-void delayMs(int n);
 
 
 const struct State states[4] = {
@@ -57,13 +56,13 @@ int main(void) {
 		GPIOB->DATA = states[state].output;
 		
 		if(blockChange == 1) {
-			GPIOA->IM &= ~(0x0C);
+			GPIOA->IM &= ~(0x1C);
 			
 			waitMS(states[state].delay);
 			blockChange = 0;
 			next = 0;
 			
-			GPIOA->IM |= 0x0C;
+			GPIOA->IM |= 0x1C;
 		}
 		
 		state = states[state].nextState[next];
@@ -90,14 +89,14 @@ void GPIOInit(void) {
 	GPIOB->DEN = 0x77;
 	
 	GPIOA->DIR = 0x00;
-	GPIOA->DEN = 0x0C;
-	GPIOA->PDR = 0x0C;
+	GPIOA->DEN = 0x1C;
+	GPIOA->PDR = 0x1C;
 	
-	GPIOA->IS &= ~0x0C;
-	GPIOA->IBE &= ~0x0C;
-	GPIOA->IEV |= 0x0C;
-	GPIOA->ICR |= 0x0C;
-	GPIOA->IM |= 0x0C;
+	GPIOA->IS &= ~0x1C;
+	GPIOA->IBE &= ~0x1C;
+	GPIOA->IEV |= 0x1C;
+	GPIOA->ICR |= 0x1C;
+	GPIOA->IM |= 0x1C;
 	
 	NVIC->IP[0] = 3<<5;
 	NVIC->ISER[0] |= 0x00000001;
@@ -125,12 +124,18 @@ void waitMS(unsigned long delay) {
 
 void GPIOA_Handler(void) {
 	volatile int readback;
-
-	if((state == GO_EW && (GPIOA->DATA & 0x08) == 0x08) || (state == GO_NS && (GPIOA->DATA & 0x04) == 0x04)) {
+	
+	if ((GPIOA->DATA & 0x10) == 0x10) {
+		GPIOB->DATA = NS_YELLOW_EW_YELLOW;
+		waitMS(WAIT_DELAY);
+		GPIOB->DATA = NS_RED_EW_RED;
+		waitMS(WAIT_DELAY);
+		GPIOB->DATA = states[state].output;
+	} else if((state == GO_EW && (GPIOA->DATA & 0x08) == 0x08) || (state == GO_NS && (GPIOA->DATA & 0x04) == 0x04)) {
 		next = 1;
 		blockChange = 1;
 	}
 
-	GPIOA->ICR |= 0x0C;
+	GPIOA->ICR |= 0x1C;
 	readback = GPIOA->ICR;
 }
