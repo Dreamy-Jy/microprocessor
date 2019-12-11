@@ -21,6 +21,11 @@ How does memeory management work in C++?
 #define GO_EW  2
 #define WAIT_EW 3
 
+struct State {
+	unsigned long output;
+	unsigned long delay;
+	unsigned long nextState[2];
+};
 
 void PLL_Init(void);
 void SysTickInit(void);
@@ -30,39 +35,34 @@ void waitMS(unsigned long delay);
 void delayMs(int n);
 
 
-struct State {
-	unsigned long output;
-	unsigned long delay;
-	unsigned long nextState[4];
-};
-
-
 const struct State states[4] = {
-	{NS_GREEN_EW_RED, GO_DELAY, {GO_NS, WAIT_NS, GO_NS, WAIT_NS}},
-	{NS_YELLOW_EW_RED, WAIT_DELAY, {GO_EW, GO_EW, GO_EW, GO_EW}},
-	{NS_RED_EW_GREEN, GO_DELAY, {GO_EW, GO_EW, WAIT_EW, WAIT_EW}},
-	{NS_RED_EW_YELLOW, WAIT_DELAY, {GO_NS, GO_NS, GO_NS, GO_NS}}
+	{NS_GREEN_EW_RED, GO_DELAY, {GO_NS, WAIT_NS}},
+	{NS_YELLOW_EW_RED, WAIT_DELAY, {GO_EW, GO_EW}},
+	{NS_RED_EW_GREEN, GO_DELAY, {GO_EW, WAIT_EW}},
+	{NS_RED_EW_YELLOW, WAIT_DELAY, {GO_NS, GO_NS}}
 };
 
 
-unsigned long cur_state;
-unsigned long input;
+int blockChange = 0;
 unsigned int state = 0;
 
+
 int main(void) {
-	//PLL_Init();
 	SysTickInit();
 	GPIOInit();
 	
 	while (1) {
 		GPIOB->DATA = states[state].output;
-		waitMS(states[state].delay);
 		
-		if (state < 3){
-			state += 1;
+		if(blockChange == 1) {
+			GPIOA->IM = 0x00;
+			waitMS(states[state].delay);
+			blockChange = 0;
+			GPIOA->IM |= 0x88;
 		} else {
-			state = 0;
+			state = states[state].nextState[0];
 		}
+		
 	}
 }
 
@@ -73,9 +73,6 @@ void SystemInit(void) {
 }
 
 
-void PLL_Init(void) {}
-
-
 void SysTickInit(void) {
 	SysTick->CTRL = 0;
 	SysTick->CTRL = 5;
@@ -83,22 +80,22 @@ void SysTickInit(void) {
 
 
 void GPIOInit(void) {
-	SYSCTL->RCGCGPIO |= 0x03; 
+	SYSCTL->RCGCGPIO |= 0x02; 
 	
 	GPIOB->DIR = 0x77;
 	GPIOB->DEN = 0x77;
 	
 	GPIOA->DIR = 0x00;
-	GPIOA->DEN = 0x04;
-	GPIOA->PDR = 0x04;
+	GPIOA->DEN = 0x0A;
+	GPIOA->PDR = 0x0A;
 	
-	GPIOA->IS &= ~0x04;
-	GPIOA->IBE &= ~0x04;
-	GPIOA->IEV &= ~0x04;
-	GPIOA->ICR |= 0x04;
-	GPIOA->IM |= 0x04;
+	GPIOA->IS &= ~0x0A;
+	GPIOA->IBE &= ~0x0A;
+	GPIOA->IEV &= ~0x0A;
+	GPIOA->ICR |= 0x0A;
+	GPIOA->IM |= 0x0A;
 	
-	NVIC->IP[16] = 3<<5;
+	NVIC->IP[0] = 3<<5;
 	NVIC->ISER[0] |= 0x00000001;
 	
 	__enable_irq();
@@ -115,20 +112,19 @@ void waitCycles(unsigned long cycles) {
 
 void waitMS(unsigned long delay) {
 	unsigned long i;
+	
 	for(i=0; i<delay; i++) {
 		waitCycles(16000); // 80000 or 16000
 	}
-	
 }
 
 
 void GPIOA_Handler(void) {
 	volatile int readback;
 	
-	GPIOB->DATA = 0x07;
-	waitMS(500);
-	GPIOB->DATA = 0x00;
-	
+	state = states[state].nextState[1];
+	blockChange = 1;
+
 	GPIOA->ICR |= 0x04;
 	readback = GPIOA->ICR;
 }
